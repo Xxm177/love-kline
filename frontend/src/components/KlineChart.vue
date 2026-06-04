@@ -1,0 +1,201 @@
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import * as echarts from 'echarts'
+import type { KlineBar, IndexPoint } from '../api/index'
+
+const props = defineProps<{
+  kline: KlineBar[]
+  index: IndexPoint[]
+}>()
+
+const chartRef = ref<HTMLDivElement>()
+let chart: echarts.ECharts | null = null
+
+function buildOption(): echarts.EChartsOption {
+  const dates = props.kline.map((k) => k.date)
+  const ohlc = props.kline.map((k) => [k.open, k.close, k.low, k.high])
+  const indexData = props.index.map((p) => [p.time, p.index])
+
+  return {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'cross' },
+      backgroundColor: '#1c2333',
+      borderColor: '#30363d',
+      textStyle: { color: '#e6edf3' },
+    },
+    grid: [
+      { left: '3%', right: '3%', top: '5%', height: '55%' },
+      { left: '3%', right: '3%', top: '68%', height: '28%' },
+    ],
+    xAxis: [
+      {
+        type: 'category',
+        data: dates,
+        gridIndex: 0,
+        axisLine: { lineStyle: { color: '#30363d' } },
+        axisLabel: { color: '#8b949e', fontSize: 11 },
+        axisTick: { show: false },
+      },
+      {
+        type: 'category',
+        data: dates,
+        gridIndex: 1,
+        axisLine: { lineStyle: { color: '#30363d' } },
+        axisLabel: { show: false },
+        axisTick: { show: false },
+      },
+    ],
+    yAxis: [
+      {
+        type: 'value',
+        gridIndex: 0,
+        axisLine: { show: false },
+        axisLabel: { color: '#8b949e', fontSize: 11 },
+        splitLine: { lineStyle: { color: '#1a1a2e' } },
+      },
+      {
+        type: 'value',
+        gridIndex: 1,
+        axisLine: { show: false },
+        axisLabel: { color: '#8b949e', fontSize: 11 },
+        splitLine: { lineStyle: { color: '#1a1a2e' } },
+      },
+    ],
+    dataZoom: [
+      {
+        type: 'inside',
+        xAxisIndex: [0, 1],
+        start: 0,
+        end: 100,
+      },
+      {
+        type: 'slider',
+        xAxisIndex: [0, 1],
+        start: 0,
+        end: 100,
+        bottom: 0,
+        height: 20,
+        borderColor: '#30363d',
+        backgroundColor: '#161b22',
+        fillerColor: 'rgba(233, 69, 96, 0.15)',
+        textStyle: { color: '#8b949e' },
+      },
+    ],
+    series: [
+      {
+        name: 'K 线',
+        type: 'candlestick',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        data: ohlc,
+        itemStyle: {
+          color: '#26a69a',
+          color0: '#ef5350',
+          borderColor: '#26a69a',
+          borderColor0: '#ef5350',
+        },
+      },
+      {
+        name: '关系指数',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: indexData,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: {
+          color: '#e94560',
+          width: 2,
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(233, 69, 96, 0.3)' },
+            { offset: 1, color: 'rgba(233, 69, 96, 0.02)' },
+          ]),
+        },
+      },
+    ],
+  }
+}
+
+function initChart() {
+  if (!chartRef.value) return
+  chart = echarts.init(chartRef.value, undefined, { renderer: 'canvas' })
+  chart.setOption(buildOption())
+}
+
+function handleResize() {
+  chart?.resize()
+}
+
+onMounted(() => {
+  initChart()
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  chart?.dispose()
+})
+
+watch(() => props.kline, () => {
+  chart?.setOption(buildOption())
+})
+</script>
+
+<template>
+  <div class="chart-wrapper">
+    <div class="chart-header">
+      <h3>关系 K 线走势图</h3>
+      <div class="chart-legend">
+        <span class="legend-tag up">阳线</span>
+        <span class="legend-tag down">阴线</span>
+        <span class="legend-tag index-line">指数</span>
+      </div>
+    </div>
+    <div ref="chartRef" class="chart-canvas" />
+  </div>
+</template>
+
+<style scoped>
+.chart-wrapper {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.chart-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 12px;
+}
+
+.legend-tag {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 4px;
+}
+.legend-tag.up { background: rgba(38, 166, 154, 0.15); color: var(--green); }
+.legend-tag.down { background: rgba(239, 83, 80, 0.15); color: var(--red); }
+.legend-tag.index-line { background: rgba(233, 69, 96, 0.15); color: var(--accent); }
+
+.chart-canvas {
+  width: 100%;
+  height: 520px;
+}
+</style>
