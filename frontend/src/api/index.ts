@@ -40,6 +40,26 @@ export async function generateKline(file: File): Promise<GenerateKlineResponse> 
   return data
 }
 
+export interface TaskStatus {
+  task_id: string
+  status: 'pending' | 'processing' | 'done' | 'error' | 'not_found'
+  progress: { current: number; total: number }
+  result: GenerateKlineResponse | null
+  error: string | null
+}
+
+export async function generateKlineAsync(file: File): Promise<{ task_id: string }> {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await api.post<{ task_id: string }>('/generate-kline-async', form)
+  return data
+}
+
+export async function getTaskStatus(taskId: string): Promise<TaskStatus> {
+  const { data } = await api.get<TaskStatus>(`/task/${taskId}`)
+  return data
+}
+
 export async function exportExcel(
   payload: GenerateKlineResponse
 ): Promise<Blob> {

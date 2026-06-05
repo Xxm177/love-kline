@@ -5,7 +5,8 @@ import UploadArea from './components/UploadArea.vue'
 import AnalysisCards from './components/AnalysisCards.vue'
 import KlineChart from './components/KlineChart.vue'
 import {
-  generateKline,
+  generateKlineAsync,
+  getTaskStatus,
   type GenerateKlineResponse,
   type ScoredMessage,
 } from './api/index'
@@ -13,10 +14,12 @@ import {
 const result = ref<GenerateKlineResponse | null>(null)
 const loading = ref(false)
 const error = ref('')
+const progress = ref({ current: 0, total: 0 })
 const showMessages = ref(false)
 const sortKey = ref<keyof ScoredMessage>('time')
 const sortAsc = ref(true)
 const klineRef = ref<InstanceType<typeof KlineChart>>()
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const sortedMessages = computed(() => {
   if (!result.value) return []
@@ -48,16 +51,44 @@ function scoreColor(s: number) {
   return 'var(--gold)'
 }
 
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
 async function handleAnalyze(file: File) {
   loading.value = true
   error.value = ''
   showMessages.value = false
+  progress.value = { current: 0, total: 0 }
+  stopPolling()
+
   try {
-    result.value = await generateKline(file)
+    const { task_id } = await generateKlineAsync(file)
+
+    pollTimer = setInterval(async () => {
+      try {
+        const task = await getTaskStatus(task_id)
+        progress.value = task.progress
+
+        if (task.status === 'done' && task.result) {
+          stopPolling()
+          result.value = task.result
+          loading.value = false
+        } else if (task.status === 'error') {
+          stopPolling()
+          error.value = task.error || '分析失败'
+          loading.value = false
+        }
+      } catch {
+        // 轮询失败，继续重试
+      }
+    }, 2000)
   } catch (e: any) {
-    error.value = e?.response?.data?.detail || e?.message || '分析失败，请重试'
-  } finally {
     loading.value = false
+    error.value = e?.response?.data?.detail || e?.message || '提交失败，请重试'
   }
 }
 
@@ -83,6 +114,18 @@ function handleExport() {
 
     <main class="app-main">
       <UploadArea :loading="loading" @analyze="handleAnalyze" />
+
+      <div v-if="loading && progress.total > 0" class="progress-section">
+        <div class="progress-info">
+          <span>正在分析中...</span>
+          <span>{{ progress.current }} / {{ progress.total }}</span>
+        </div>
+        <el-progress
+          :percentage="Math.round((progress.current / progress.total) * 100)"
+          :stroke-width="8"
+          :show-text="false"
+        />
+      </div>
 
       <div v-if="error" class="error-banner">{{ error }}</div>
 
@@ -211,6 +254,27 @@ function handleExport() {
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px 20px;
+}
+
+.progress-section {
+  margin: 24px 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.progress-info span:first-child {
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
 .error-banner {
