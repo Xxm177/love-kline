@@ -10,8 +10,8 @@
 - 生成日 K 线 OHLC 数据
 - K 线图可视化（ECharts 蜡烛图 + MA5/MA10 均线 + 消息量柱状图）
 - 情感维度分布饼图、消息评分详情列表
-- 导出 K 线 PNG 图片
-- Excel 导出（3 个 Sheet）
+- 一键导出 K 线 PNG 图片
+- 后端支持 Excel 导出（POST /export，3 个 Sheet）
 
 ## 项目结构
 
@@ -122,4 +122,4 @@ docker-compose up -d
 | POST | `/upload` | 上传并解析聊天记录 |
 | POST | `/analyze` | 单条消息评分 |
 | POST | `/generate-kline` | 一键分析（上传→评分→指数→K线） |
-| POST | `/export` | 导出 Excel（3 个 Sheet） |
+| POST | `/export` | 导出 Excel（3 个 Sheet，前端按钮为 PNG） |
