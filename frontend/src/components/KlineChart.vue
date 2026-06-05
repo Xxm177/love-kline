@@ -32,7 +32,23 @@ function buildOption(): echarts.EChartsOption {
   const ma5 = calcMA(closes, 5)
   const ma10 = calcMA(closes, 10)
 
-  const indexData = props.index.map((p) => [p.time, p.index])
+  // 统计每日消息数量
+  const dailyCount: Record<string, number> = {}
+  for (const p of props.index) {
+    const date = p.time.slice(0, 10)
+    dailyCount[date] = (dailyCount[date] || 0) + 1
+  }
+
+  // 消息量柱状图（颜色跟随当天涨跌）
+  const volumeData = props.kline.map((k) => {
+    const isUp = k.close >= k.open
+    return {
+      value: dailyCount[k.date] || 0,
+      itemStyle: {
+        color: isUp ? 'rgba(38, 166, 154, 0.55)' : 'rgba(239, 83, 80, 0.55)',
+      },
+    }
+  })
 
   return {
     backgroundColor: 'transparent',
@@ -49,7 +65,7 @@ function buildOption(): echarts.EChartsOption {
       textStyle: { color: '#8b949e', fontSize: 11 },
       itemWidth: 14,
       itemHeight: 8,
-      data: ['K线', 'MA5', 'MA10'],
+      data: ['K线', 'MA5', 'MA10', '消息量'],
     },
     grid: [
       { left: '3%', right: '3%', top: '8%', height: '52%' },
@@ -147,23 +163,12 @@ function buildOption(): echarts.EChartsOption {
         lineStyle: { color: '#7b68ee', width: 1.5 },
       },
       {
-        name: '关系指数',
-        type: 'line',
+        name: '消息量',
+        type: 'bar',
         xAxisIndex: 1,
         yAxisIndex: 1,
-        data: indexData,
-        smooth: true,
-        symbol: 'none',
-        lineStyle: {
-          color: '#e94560',
-          width: 2,
-        },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(233, 69, 96, 0.3)' },
-            { offset: 1, color: 'rgba(233, 69, 96, 0.02)' },
-          ]),
-        },
+        data: volumeData,
+        barWidth: '60%',
       },
     ],
   }
@@ -192,6 +197,16 @@ onUnmounted(() => {
 watch(() => props.kline, () => {
   chart?.setOption(buildOption())
 })
+
+function getImage(): string | null {
+  return chart?.getDataURL({
+    type: 'png',
+    pixelRatio: 2,
+    backgroundColor: '#0d1117',
+  }) ?? null
+}
+
+defineExpose({ getImage })
 </script>
 
 <template>
@@ -203,7 +218,7 @@ watch(() => props.kline, () => {
         <span class="legend-tag down">阴线</span>
         <span class="legend-tag ma5">MA5</span>
         <span class="legend-tag ma10">MA10</span>
-        <span class="legend-tag index-line">指数</span>
+        <span class="legend-tag volume">消息量</span>
       </div>
     </div>
     <div ref="chartRef" class="chart-canvas" />
@@ -246,7 +261,7 @@ watch(() => props.kline, () => {
 .legend-tag.down { background: rgba(239, 83, 80, 0.15); color: var(--red); }
 .legend-tag.ma5 { background: rgba(245, 166, 35, 0.15); color: #f5a623; }
 .legend-tag.ma10 { background: rgba(123, 104, 238, 0.15); color: #7b68ee; }
-.legend-tag.index-line { background: rgba(233, 69, 96, 0.15); color: var(--accent); }
+.legend-tag.volume { background: rgba(139, 148, 158, 0.15); color: var(--text-secondary); }
 
 .chart-canvas {
   width: 100%;

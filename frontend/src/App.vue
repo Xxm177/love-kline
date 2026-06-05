@@ -6,8 +6,6 @@ import AnalysisCards from './components/AnalysisCards.vue'
 import KlineChart from './components/KlineChart.vue'
 import {
   generateKline,
-  exportExcel,
-  downloadBlob,
   type GenerateKlineResponse,
   type ScoredMessage,
 } from './api/index'
@@ -18,6 +16,7 @@ const error = ref('')
 const showMessages = ref(false)
 const sortKey = ref<keyof ScoredMessage>('time')
 const sortAsc = ref(true)
+const klineRef = ref<InstanceType<typeof KlineChart>>()
 
 const sortedMessages = computed(() => {
   if (!result.value) return []
@@ -62,14 +61,13 @@ async function handleAnalyze(file: File) {
   }
 }
 
-async function handleExport() {
-  if (!result.value) return
-  try {
-    const blob = await exportExcel(result.value)
-    downloadBlob(blob, 'love_kline.xlsx')
-  } catch (e: any) {
-    error.value = '导出失败，请重试'
-  }
+function handleExport() {
+  const url = klineRef.value?.getImage()
+  if (!url) return
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'love_kline.png'
+  a.click()
 }
 </script>
 
@@ -102,11 +100,12 @@ async function handleExport() {
             size="large"
             @click="handleExport"
           >
-            导出 Excel
+            导出图片
           </el-button>
         </div>
 
         <KlineChart
+          ref="klineRef"
           :kline="result.kline"
           :index="result.index"
         />
