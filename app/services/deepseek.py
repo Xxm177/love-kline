@@ -110,20 +110,22 @@ def score_messages_batch(
     for idx, i in enumerate(range(0, total, chunk_size)):
         chunks.append((idx, messages[i : i + chunk_size]))
 
-    # Pre-allocate result slots
+    # Pre-allocate result slots, fill with empty on failure
     results: list[list[dict] | None] = [None] * len(chunks)
-    completed_count = 0
 
     def _score_one(idx_chunk: tuple[int, list[str]]) -> tuple[int, list[dict]]:
         idx, chunk = idx_chunk
-        return idx, _score_chunk(chunk)
+        try:
+            return idx, _score_chunk(chunk)
+        except Exception:
+            # Return empty scores on failure, process continues
+            return idx, [{"score": 0, "dimension": "", "reason": ""}] * len(chunk)
 
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
         futures = {executor.submit(_score_one, c): c[0] for c in chunks}
         for future in as_completed(futures):
-            idx, scores = future.result()
+            idx, scores = future.result(timeout=120)
             results[idx] = scores
-            completed_count += 1
             if on_progress:
                 scored = sum(len(r) for r in results if r is not None)
                 on_progress(scored, total)
