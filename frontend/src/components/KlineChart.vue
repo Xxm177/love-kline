@@ -11,9 +11,27 @@ const props = defineProps<{
 const chartRef = ref<HTMLDivElement>()
 let chart: echarts.ECharts | null = null
 
+function calcMA(data: number[], period: number): (number | null)[] {
+  const result: (number | null)[] = []
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      result.push(null)
+    } else {
+      let sum = 0
+      for (let j = i - period + 1; j <= i; j++) sum += data[j]
+      result.push(Number((sum / period).toFixed(1)))
+    }
+  }
+  return result
+}
+
 function buildOption(): echarts.EChartsOption {
   const dates = props.kline.map((k) => k.date)
   const ohlc = props.kline.map((k) => [k.open, k.close, k.low, k.high])
+  const closes = props.kline.map((k) => k.close)
+  const ma5 = calcMA(closes, 5)
+  const ma10 = calcMA(closes, 10)
+
   const indexData = props.index.map((p) => [p.time, p.index])
 
   return {
@@ -23,11 +41,19 @@ function buildOption(): echarts.EChartsOption {
       axisPointer: { type: 'cross' },
       backgroundColor: '#1c2333',
       borderColor: '#30363d',
-      textStyle: { color: '#e6edf3' },
+      textStyle: { color: '#e6edf3', fontSize: 12 },
+    },
+    legend: {
+      top: 0,
+      left: 'center',
+      textStyle: { color: '#8b949e', fontSize: 11 },
+      itemWidth: 14,
+      itemHeight: 8,
+      data: ['K线', 'MA5', 'MA10'],
     },
     grid: [
-      { left: '3%', right: '3%', top: '5%', height: '55%' },
-      { left: '3%', right: '3%', top: '68%', height: '28%' },
+      { left: '3%', right: '3%', top: '8%', height: '52%' },
+      { left: '3%', right: '3%', top: '68%', height: '24%' },
     ],
     xAxis: [
       {
@@ -51,6 +77,7 @@ function buildOption(): echarts.EChartsOption {
       {
         type: 'value',
         gridIndex: 0,
+        scale: true,
         axisLine: { show: false },
         axisLabel: { color: '#8b949e', fontSize: 11 },
         splitLine: { lineStyle: { color: '#1a1a2e' } },
@@ -85,7 +112,7 @@ function buildOption(): echarts.EChartsOption {
     ],
     series: [
       {
-        name: 'K 线',
+        name: 'K线',
         type: 'candlestick',
         xAxisIndex: 0,
         yAxisIndex: 0,
@@ -96,6 +123,28 @@ function buildOption(): echarts.EChartsOption {
           borderColor: '#26a69a',
           borderColor0: '#ef5350',
         },
+        markPoint: {
+          label: {
+            formatter: (p: any) => Math.round(p.value as number).toString(),
+            color: '#e6edf3',
+          },
+        },
+      },
+      {
+        name: 'MA5',
+        type: 'line',
+        data: ma5,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { color: '#f5a623', width: 1.5 },
+      },
+      {
+        name: 'MA10',
+        type: 'line',
+        data: ma10,
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { color: '#7b68ee', width: 1.5 },
       },
       {
         name: '关系指数',
@@ -152,6 +201,8 @@ watch(() => props.kline, () => {
       <div class="chart-legend">
         <span class="legend-tag up">阳线</span>
         <span class="legend-tag down">阴线</span>
+        <span class="legend-tag ma5">MA5</span>
+        <span class="legend-tag ma10">MA10</span>
         <span class="legend-tag index-line">指数</span>
       </div>
     </div>
@@ -182,7 +233,8 @@ watch(() => props.kline, () => {
 
 .chart-legend {
   display: flex;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .legend-tag {
@@ -192,6 +244,8 @@ watch(() => props.kline, () => {
 }
 .legend-tag.up { background: rgba(38, 166, 154, 0.15); color: var(--green); }
 .legend-tag.down { background: rgba(239, 83, 80, 0.15); color: var(--red); }
+.legend-tag.ma5 { background: rgba(245, 166, 35, 0.15); color: #f5a623; }
+.legend-tag.ma10 { background: rgba(123, 104, 238, 0.15); color: #7b68ee; }
 .legend-tag.index-line { background: rgba(233, 69, 96, 0.15); color: var(--accent); }
 
 .chart-canvas {

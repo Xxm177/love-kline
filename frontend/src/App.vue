@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import UploadArea from './components/UploadArea.vue'
 import AnalysisCards from './components/AnalysisCards.vue'
@@ -9,15 +9,50 @@ import {
   exportExcel,
   downloadBlob,
   type GenerateKlineResponse,
+  type ScoredMessage,
 } from './api/index'
 
 const result = ref<GenerateKlineResponse | null>(null)
 const loading = ref(false)
 const error = ref('')
+const showMessages = ref(false)
+const sortKey = ref<keyof ScoredMessage>('time')
+const sortAsc = ref(true)
+
+const sortedMessages = computed(() => {
+  if (!result.value) return []
+  const msgs = [...result.value.messages]
+  msgs.sort((a, b) => {
+    const va = a[sortKey.value]
+    const vb = b[sortKey.value]
+    if (typeof va === 'number' && typeof vb === 'number') {
+      return sortAsc.value ? va - vb : vb - va
+    }
+    const cmp = String(va).localeCompare(String(vb))
+    return sortAsc.value ? cmp : -cmp
+  })
+  return msgs
+})
+
+function toggleSort(key: keyof ScoredMessage) {
+  if (sortKey.value === key) {
+    sortAsc.value = !sortAsc.value
+  } else {
+    sortKey.value = key
+    sortAsc.value = true
+  }
+}
+
+function scoreColor(s: number) {
+  if (s > 0) return 'var(--green)'
+  if (s < 0) return 'var(--red)'
+  return 'var(--gold)'
+}
 
 async function handleAnalyze(file: File) {
   loading.value = true
   error.value = ''
+  showMessages.value = false
   try {
     result.value = await generateKline(file)
   } catch (e: any) {
@@ -49,14 +84,9 @@ async function handleExport() {
     </header>
 
     <main class="app-main">
-      <UploadArea
-        :loading="loading"
-        @analyze="handleAnalyze"
-      />
+      <UploadArea :loading="loading" @analyze="handleAnalyze" />
 
-      <div v-if="error" class="error-banner">
-        {{ error }}
-      </div>
+      <div v-if="error" class="error-banner">{{ error }}</div>
 
       <template v-if="result">
         <AnalysisCards
@@ -80,6 +110,51 @@ async function handleExport() {
           :kline="result.kline"
           :index="result.index"
         />
+
+        <!-- Message Detail Table -->
+        <div class="message-section">
+          <div class="section-header" @click="showMessages = !showMessages">
+            <h4>消息评分详情 ({{ result.messages.length }} 条)</h4>
+            <span class="toggle-icon">{{ showMessages ? '▾' : '▸' }}</span>
+          </div>
+
+          <div v-if="showMessages" class="table-wrap">
+            <table class="msg-table">
+              <thead>
+                <tr>
+                  <th @click="toggleSort('time')" class="sortable">
+                    时间 {{ sortKey === 'time' ? (sortAsc ? '↑' : '↓') : '' }}
+                  </th>
+                  <th @click="toggleSort('sender')" class="sortable">
+                    发送者 {{ sortKey === 'sender' ? (sortAsc ? '↑' : '↓') : '' }}
+                  </th>
+                  <th class="msg-col">消息</th>
+                  <th @click="toggleSort('score')" class="sortable">
+                    评分 {{ sortKey === 'score' ? (sortAsc ? '↑' : '↓') : '' }}
+                  </th>
+                  <th @click="toggleSort('dimension')" class="sortable">
+                    维度 {{ sortKey === 'dimension' ? (sortAsc ? '↑' : '↓') : '' }}
+                  </th>
+                  <th class="reason-col">原因</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(m, i) in sortedMessages" :key="i">
+                  <td class="time-cell">{{ m.time }}</td>
+                  <td>{{ m.sender }}</td>
+                  <td class="msg-cell">{{ m.message }}</td>
+                  <td :style="{ color: scoreColor(m.score), fontWeight: '700' }">
+                    {{ m.score > 0 ? '+' : '' }}{{ m.score }}
+                  </td>
+                  <td>
+                    <span v-if="m.dimension" class="dim-tag">{{ m.dimension }}</span>
+                  </td>
+                  <td class="reason-cell">{{ m.reason }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </template>
     </main>
   </div>
@@ -153,5 +228,92 @@ async function handleExport() {
   display: flex;
   justify-content: flex-end;
   margin: 24px 0;
+}
+
+/* ── Message Table ── */
+.message-section {
+  margin-top: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid transparent;
+}
+
+.section-header:hover { background: rgba(255,255,255,0.02); }
+.section-header h4 { font-size: 15px; font-weight: 600; }
+
+.toggle-icon {
+  font-size: 18px;
+  color: var(--text-secondary);
+}
+
+.table-wrap {
+  overflow-x: auto;
+  max-height: 500px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+}
+
+.msg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.msg-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.msg-table th {
+  background: #1a1a2e;
+  color: var(--text-secondary);
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.msg-table th.sortable {
+  cursor: pointer;
+}
+.msg-table th.sortable:hover {
+  color: var(--text-primary);
+}
+
+.msg-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+  vertical-align: middle;
+}
+
+.msg-table tbody tr:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.time-cell { color: var(--text-secondary); white-space: nowrap; font-size: 12px; }
+.msg-cell { max-width: 200px; }
+.reason-cell { color: var(--text-secondary); max-width: 260px; font-size: 12px; }
+
+.dim-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(233, 69, 96, 0.12);
+  color: var(--accent);
+  font-size: 12px;
+  white-space: nowrap;
 }
 </style>
