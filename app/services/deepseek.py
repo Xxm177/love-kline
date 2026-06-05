@@ -1,5 +1,6 @@
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -100,15 +101,35 @@ dimension可选：关心、亲密、幽默、冲突、冷漠、支持、理解�
 
 def score_messages_batch(
     messages: list[str],
-    chunk_size: int = 60,
+    chunk_size: int = 200,
+    concurrency: int = 5,
     on_progress: callable | None = None,
 ) -> list[dict]:
-    all_scores: list[dict] = []
     total = len(messages)
-    for i in range(0, total, chunk_size):
-        chunk = messages[i : i + chunk_size]
-        scores = _score_chunk(chunk)
-        all_scores.extend(scores)
-        if on_progress:
-            on_progress(len(all_scores), total)
+    chunks: list[tuple[int, list[str]]] = []
+    for idx, i in enumerate(range(0, total, chunk_size)):
+        chunks.append((idx, messages[i : i + chunk_size]))
+
+    # Pre-allocate result slots
+    results: list[list[dict] | None] = [None] * len(chunks)
+    completed_count = 0
+
+    def _score_one(idx_chunk: tuple[int, list[str]]) -> tuple[int, list[dict]]:
+        idx, chunk = idx_chunk
+        return idx, _score_chunk(chunk)
+
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        futures = {executor.submit(_score_one, c): c[0] for c in chunks}
+        for future in as_completed(futures):
+            idx, scores = future.result()
+            results[idx] = scores
+            completed_count += 1
+            if on_progress:
+                scored = sum(len(r) for r in results if r is not None)
+                on_progress(scored, total)
+
+    all_scores: list[dict] = []
+    for r in results:
+        if r is not None:
+            all_scores.extend(r)
     return all_scores
