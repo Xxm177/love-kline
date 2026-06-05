@@ -8,8 +8,50 @@
 - DeepSeek AI 批量评分每条消息（-5 ~ +5）
 - 累积生成关系指数曲线
 - 生成日 K 线 OHLC 数据
-- K 线图可视化（ECharts 蜡烛图）
+- K 线图可视化（ECharts 蜡烛图 + MA5/MA10 均线 + 消息量柱状图）
+- 情感维度分布饼图、消息评分详情列表
+- 导出 K 线 PNG 图片
 - Excel 导出（3 个 Sheet）
+
+## 项目结构
+
+```
+love-kline/
+├── app/
+│   ├── main.py                      # FastAPI 入口 + CORS
+│   ├── api/
+│   │   ├── upload.py                # POST /upload  上传解析
+│   │   ├── analyze.py               # POST /analyze  单条评分
+│   │   ├── kline.py                 # POST /kline + /generate-kline  生成K线
+│   │   └── export.py                # POST /export  Excel导出
+│   ├── services/
+│   │   ├── parser.py                # 聊天记录解析
+│   │   ├── deepseek.py              # DeepSeek 单条/批量评分
+│   │   ├── relation.py              # 关系指数累积
+│   │   ├── kline_generator.py       # K线 OHLC 生成
+│   │   └── exporter.py              # openpyxl Excel 导出
+│   └── schemas/
+│       └── analyze.py               # Pydantic v2 数据模型
+├── frontend/
+│   ├── src/
+│   │   ├── App.vue                  # 主页面
+│   │   ├── main.ts                  # Vue 入口
+│   │   ├── api/index.ts             # API 调用层
+│   │   ├── components/
+│   │   │   ├── UploadArea.vue       # 上传区域
+│   │   │   ├── AnalysisCards.vue    # 统计卡片 + 维度饼图
+│   │   │   └── KlineChart.vue       # K线图 + 均线 + 消息量
+│   │   └── styles/main.css          # 暗色主题
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.ts
+├── start.bat                        # Windows 一键启动
+├── Dockerfile
+├── docker-compose.yml
+├── pyproject.toml
+├── .env.example
+└── README.md
+```
 
 ## 技术栈
 
@@ -80,4 +122,4 @@ docker-compose up -d
 | POST | `/upload` | 上传并解析聊天记录 |
 | POST | `/analyze` | 单条消息评分 |
 | POST | `/generate-kline` | 一键分析（上传→评分→指数→K线） |
-| POST | `/export` | 导出 Excel |
+| POST | `/export` | 导出 Excel（3 个 Sheet） |
